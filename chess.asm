@@ -20,6 +20,13 @@ invalid_m db 13,10,'INVALID MOVE$'
 check_msg db 13,10,'CHECK FROM $'
 mate_msg  db 13,10,'CHECKMATE! GAME OVER$'
 
+promo_msg db 13,10,'Pawn Promotion!',13,10, \
+              '1. Queen',13,10, \
+              '2. Rook',13,10, \
+              '3. Bishop',13,10, \
+              '4. Knight',13,10, \
+              'Choice: $'
+
 src_i     db ?
 dst_i     db ?
 turn      db 0        ; 0 = white, 1 = black
@@ -64,6 +71,7 @@ show:
     jc invalid
 
     call do_move
+    call pawn_promotion
 
     call is_check
     jc show_check
@@ -190,50 +198,31 @@ validate_move endp
 validate_piece proc
     mov al,board[si]
 
-    cmp al,'P'
-    je pawn
-    cmp al,'p'
-    je pawn
-    cmp al,'R'
-    je rook
-    cmp al,'r'
-    je rook
-    cmp al,'B'
-    je bishop
-    cmp al,'b'
-    je bishop
-    cmp al,'N'
-    je knight
-    cmp al,'n'
-    je knight
-    cmp al,'Q'
-    je queen
-    cmp al,'q'
-    je queen
-    cmp al,'K'
-    je king
-    cmp al,'k'
-    je king
-
+    cmp al,'P' je pawn
+    cmp al,'p' je pawn
+    cmp al,'R' je rook
+    cmp al,'r' je rook
+    cmp al,'B' je bishop
+    cmp al,'b' je bishop
+    cmp al,'N' je knight
+    cmp al,'n' je knight
+    cmp al,'Q' je queen
+    cmp al,'q' je queen
+    cmp al,'K' je king
+    cmp al,'k' je king
     stc
     ret
 
-pawn:   call pawn_logic   ; fallthrough
-        ret
-rook:   call rook_logic
-        ret
-bishop: call bishop_logic
-        ret
-knight: call knight_logic
-        ret
+pawn:   call pawn_logic   ret
+rook:   call rook_logic   ret
+bishop: call bishop_logic ret
+knight: call knight_logic ret
 queen:  call rook_logic
         jnc okq
         call bishop_logic
         ret
-okq:    clc
-        ret
-king:   call king_logic
-        ret
+okq:    clc ret
+king:   call king_logic   ret
 validate_piece endp
 
 ; ================= PIECE LOGIC =================
@@ -242,48 +231,35 @@ pawn_logic proc
     sub al,di
     cmp turn,0
     jne bp
-    cmp al,8
-    je fwd
-    cmp al,7
-    je cap
-    cmp al,9
-    je cap
-    stc
-    ret
+    cmp al,8 je fwd
+    cmp al,7 je cap
+    cmp al,9 je cap
+    stc ret
 bp:
-    cmp al,-8
-    je fwd
-    cmp al,-7
-    je cap
-    cmp al,-9
-    je cap
-    stc
-    ret
+    cmp al,-8 je fwd
+    cmp al,-7 je cap
+    cmp al,-9 je cap
+    stc ret
 fwd:
     cmp board[di],'.'
     jne bad
-    clc
-    ret
+    clc ret
 cap:
     cmp board[di],'.'
     je bad
-    clc
-    ret
+    clc ret
 bad:
-    stc
-    ret
+    stc ret
 pawn_logic endp
 
 rook_logic proc
     mov ax,si
-    mov bx,di
-    sub ax,bx
+    sub ax,di
     jz bad
 
-    cmp ax,8
-    je vert
-    cmp ax,-8
-    je vert
+    mov bx,ax
+    cmp bx,8 je vert
+    cmp bx,-8 je vert
 
     mov ax,si
     xor dx,dx
@@ -307,29 +283,19 @@ step:
     cmp board[cx],'.'
     jne bad
     jmp step
-ok:
-    clc
-    ret
-bad:
-    stc
-    ret
+ok: clc ret
+bad: stc ret
 rook_logic endp
 
 bishop_logic proc
     mov ax,si
     sub ax,di
-    cmp ax,7
-    je d7
-    cmp ax,-7
-    je d7
-    cmp ax,9
-    je d9
-    cmp ax,-9
-    je d9
-    stc
-    ret
-d7: mov bl,7
-    jmp scan
+    cmp ax,7 je d7
+    cmp ax,-7 je d7
+    cmp ax,9 je d9
+    cmp ax,-9 je d9
+    stc ret
+d7: mov bl,7 jmp scan
 d9: mov bl,9
 scan:
     mov cx,si
@@ -340,59 +306,37 @@ next:
     cmp board[cx],'.'
     jne bad
     jmp next
-ok:
-    clc
-    ret
-bad:
-    stc
-    ret
+ok: clc ret
+bad: stc ret
 bishop_logic endp
 
 knight_logic proc
     mov al,si
     sub al,di
-    cmp al,6
-    je ok
-    cmp al,-6
-    je ok
-    cmp al,10
-    je ok
-    cmp al,-10
-    je ok
-    cmp al,15
-    je ok
-    cmp al,-15
-    je ok
-    cmp al,17
-    je ok
-    cmp al,-17
-    je ok
-    stc
-    ret
-ok:
-    clc
-    ret
+    cmp al,6 je ok
+    cmp al,-6 je ok
+    cmp al,10 je ok
+    cmp al,-10 je ok
+    cmp al,15 je ok
+    cmp al,-15 je ok
+    cmp al,17 je ok
+    cmp al,-17 je ok
+    stc ret
+ok: clc ret
 knight_logic endp
 
 king_logic proc
     mov al,si
     sub al,di
-    cmp al,1
-    jbe ok
-    cmp al,7
-    jbe ok
-    cmp al,8
-    jbe ok
-    cmp al,9
-    jbe ok
-    stc
-    ret
-ok:
-    clc
-    ret
+    cmp al,1 jbe ok
+    cmp al,7 jbe ok
+    cmp al,8 jbe ok
+    cmp al,9 jbe ok
+    stc ret
+ok: clc ret
 king_logic endp
 
-; ================= EXECUTE MOVE =================
+; ================= MOVE =================
 do_move proc
     mov al,board[si]
     mov board[di],al
@@ -400,40 +344,72 @@ do_move proc
     ret
 do_move endp
 
-; ================= SIMULATE MOVE =================
 simulate_and_check proc
     mov save_a,board[si]
     mov save_b,board[di]
-
     mov board[di],save_a
     mov board[si],'.'
-
     call is_check
-
     mov board[si],save_a
     mov board[di],save_b
     ret
 simulate_and_check endp
 
-; ================= CHECK =================
+; ================= PAWN PROMOTION =================
+pawn_promotion proc
+    mov al,board[di]
+    cmp al,'P'
+    jne chk_black
+    cmp di,7
+    jbe promote
+    ret
+chk_black:
+    cmp al,'p'
+    jne done
+    cmp di,56
+    jb done
+promote:
+    mov ah,09h
+    lea dx,promo_msg
+    int 21h
+getc:
+    mov ah,01h
+    int 21h
+    cmp al,'1' je q
+    cmp al,'2' je r
+    cmp al,'3' je b
+    cmp al,'4' je n
+    jmp getc
+q: mov al,'Q' jmp place
+r: mov al,'R' jmp place
+b: mov al,'B' jmp place
+n: mov al,'N'
+place:
+    cmp turn,0
+    je white
+    add al,32
+white:
+    mov board[di],al
+done:
+    ret
+pawn_promotion endp
+
+; ================= CHECK (FIXED) =================
 is_check proc
     mov cx,64
     mov si,0
 findk:
     mov al,board[si]
     cmp turn,0
-    jne fk2
-    cmp al,'K'
-    je found
+    jne bk
+    cmp al,'K' je found
     jmp nx
-fk2:
-    cmp al,'k'
-    je found
+bk:
+    cmp al,'k' je found
 nx:
     inc si
     loop findk
-    clc
-    ret
+    clc ret
 found:
     mov di,si
     mov cx,64
@@ -442,49 +418,58 @@ scan:
     mov al,board[si]
     cmp al,'.'
     je skip
+    cmp turn,0
+    jne white_attacker
+    cmp al,'a'
+    jb skip
+    cmp al,'z'
+    ja skip
+    jmp test
+white_attacker:
+    cmp al,'A'
+    jb skip
+    cmp al,'Z'
+    ja skip
+test:
     mov src_i,si
     mov dst_i,di
     call validate_piece
-    jnc hit
+    jc skip
+    mov check_src,si
+    stc ret
 skip:
     inc si
     loop scan
-    clc
-    ret
-hit:
-    mov check_src,si
-    stc
-    ret
+    clc ret
 is_check endp
 
 ; ================= CHECKMATE =================
 is_checkmate proc
     mov cx,64
     mov si,0
-p_loop:
+pl:
     mov al,board[si]
     cmp al,'.'
-    je nextp
+    je np
     mov src_i,si
     mov di,0
-s_loop:
+sl:
     mov dst_i,di
     call validate_piece
-    jc nexts
+    jc ns
     call simulate_and_check
     jnc escape
-nexts:
+ns:
     inc di
     cmp di,64
-    jb s_loop
-nextp:
+    jb sl
+np:
     inc si
-    loop p_loop
-    stc
-    ret
+    loop pl
+    stc ret
 escape:
-    clc
-    ret
+    clc ret
 is_checkmate endp
 
 end main
+  
